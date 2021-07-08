@@ -4,11 +4,10 @@
 # @File    : geeknical_excel.py
 # @Description    : 说明示例，不具有直接运行的保证， 依赖pydantic， xlsxwriter，读源码后可自行安装尝试
 # 建议阅读或者了解xlsxwriter基础api之后再来看本文件
-
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple, Union
 import tempfile
 import os.path
-from web.lib import datetime_util, oss_util
+from .....lib import datetime_util
 import xlsxwriter
 from pydantic import BaseModel
 import shutil
