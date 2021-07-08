@@ -5,10 +5,10 @@
 # @Description    : 说明示例，不具有直接运行的保证， 依赖pydantic， xlsxwriter，读源码后可自行安装尝试
 # 建议阅读或者了解xlsxwriter基础api之后再来看本文件
 
-from typing import Dict, Optional, List, Tuple, Union
+from typing import Dict, Optional, List, Tuple
 import tempfile
 import os.path
-from .....lib import datetime_util
+from web.lib import datetime_util, oss_util
 import xlsxwriter
 from pydantic import BaseModel
 import shutil
@@ -16,18 +16,12 @@ import shutil
 
 
 class ExcelTitleVO(BaseModel):
-    """
-    excel的title构建
-    """
     title: str
     title_format_dict: Optional[Dict]
     title_range: str  # "B3:D4"
 
 
 class SingleSheetContent(BaseModel):
-    """
-    单个excel的worksheet内容的构建
-    """
     work_sheet_name: str
     titles: List[ExcelTitleVO]
     contents: List[List]
@@ -51,9 +45,7 @@ class SingleSheetContent(BaseModel):
 
 
 class ExcelContents:
-    """
-    主要实现类
-    """
+
     @classmethod
     def build_simple_contents(cls, title: str, list_of_datas: list, title_range="A1:Z1"):
         return cls(
@@ -198,6 +190,7 @@ def build_excel_titles(title_infos: List[Dict]) -> List[ExcelTitleVO]:
     """
     Args:
         title_infos:
+        [
             {
                 title:
                 title_range:
@@ -208,8 +201,9 @@ def build_excel_titles(title_infos: List[Dict]) -> List[ExcelTitleVO]:
                     'valign': 'vcenter',
                     'fg_color': '#DDDDDD', 等等等 查看xlsxwriter官方文档
                 }]
-            }
-    构造excel titles
+            }, ...
+        ]
+
     Returns:
 
     """
@@ -242,12 +236,16 @@ def build_excel_title(title, title_range, title_format_dict=None) -> ExcelTitleV
     return ExcelTitleVO(**title_info)
 
 
+def read_from_excel(target_file):
+    pass
+
+# 这里好像有现成的库有这个逻辑
 letters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N",
            "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
 
 num_map_letter = dict([(i + 1, letters[i]) for i in range(26)])
 
-# xlsxwriter 应该有更好的直接的api，当时没去查自己随便写了一下
+
 def get_col_letter_position_from_num(col_num):
     if col_num > 702:  # 暂无需超过两位字母的列
         raise Exception("exceed length")
@@ -273,9 +271,9 @@ def upload_excel_file_for_url(excel_file_name, excel_content: ExcelContents, wor
     return _get_excel_file_url(file_path, tmpdir)
 
 
-def upload_excel_file_with_multi_sheets(excel_file_name, multiple_sheet_contents: List[SingleSheetContent]) -> str:
-    """ return excel url  多sheet 的写入"""
-    e_c, file_path, tmpdir = _get_init_excel_content(excel_file_name)
+def build_local_excel_with_multi_sheets(excel_file_name, multiple_sheet_contents: List[SingleSheetContent]):
+    e_c = ExcelContents([], [])
+    e_c.set_workbook(excel_file_name)
 
     for single_sheet_content_vo in multiple_sheet_contents:
         titles = single_sheet_content_vo.titles
@@ -290,35 +288,20 @@ def upload_excel_file_with_multi_sheets(excel_file_name, multiple_sheet_contents
                                            content_start_col=content_start_col, content_start_row=content_start_row)
     e_c.close_work_book()
 
-    return _get_excel_file_url(file_path, tmpdir)
 
-
-def upload_excel_file_for_url_with_multi_sheets(excel_file_name, excel_sheet_map_contents):
-    """
-    Args:
-        excel_file_name:
-        excel_sheet_map_contents: {
-            worksheet_name: {
-                titles:
-                contents:
-                write_in_by_row:
-                content_start_col:
-                content_start_row:
-            },
-            ...
-        }
-    多sheet 的写入
-    Returns:  return excel url
-    """
+def upload_excel_file_with_multi_sheets(excel_file_name, multiple_sheet_contents: List[SingleSheetContent]) -> str:
+    """ return excel url """
     e_c, file_path, tmpdir = _get_init_excel_content(excel_file_name)
-    for worksheet_name, content_info in excel_sheet_map_contents.items():
-        titles = content_info["titles"]
-        contents = content_info["contents"]
-        write_in_by_row = content_info["write_in_by_row"]
-        content_start_col = content_info["content_start_col"]
-        content_start_row = content_info["content_start_row"]
+
+    for single_sheet_content_vo in multiple_sheet_contents:
+        titles = single_sheet_content_vo.titles
+        datas = single_sheet_content_vo.contents
+        write_in_by_row = single_sheet_content_vo.write_in_by_row
+        content_start_col = single_sheet_content_vo.content_start_col
+        content_start_row = single_sheet_content_vo.content_start_row
+        worksheet_name = single_sheet_content_vo.work_sheet_name
         e_c.titles = titles
-        e_c.datas = contents
+        e_c.datas = datas
         e_c.write_in_excel_with_mul_sheets(worksheet_name=worksheet_name, write_in_by_row=write_in_by_row,
                                            content_start_col=content_start_col, content_start_row=content_start_row)
     e_c.close_work_book()
